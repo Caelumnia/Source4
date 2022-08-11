@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{A409A80C-4FCB-71B0-9E67-74B4C28A0B64}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "Source4",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
