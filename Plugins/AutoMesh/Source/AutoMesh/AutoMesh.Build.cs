@@ -38,6 +38,8 @@ public class AutoMesh : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"RHI",
+				"RenderCore",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
