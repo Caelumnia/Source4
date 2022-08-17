@@ -14,14 +14,6 @@
 		{
 			"Name": "RenderDocPlugin",
 			"Enabled": true
-		},
-		{
-			"Name": "AutoBatch",
-			"Enabled": false
-		},
-		{
-			"Name": "AutoMesh",
-			"Enabled": false
 		}
 	]
 }
