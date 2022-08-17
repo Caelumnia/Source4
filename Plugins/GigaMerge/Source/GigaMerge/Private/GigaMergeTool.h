@@ -27,7 +27,7 @@ public:
 
 	static void Destroy()
 	{
-		if (DefaultSettings)
+		if (UObjectInitialized() && DefaultSettings)
 		{
 			DefaultSettings->RemoveFromRoot();
 			DefaultSettings->MarkPendingKill();
