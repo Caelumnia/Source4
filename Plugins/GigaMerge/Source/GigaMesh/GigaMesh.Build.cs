@@ -11,18 +11,13 @@ public class GigaMesh : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] { }
 		);
-		
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-			}
-		);
-		
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
+				"CoreUObject",
+				"Engine",
 			}
 		);
 	}

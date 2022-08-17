@@ -69,14 +69,15 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 	UE_LOG(LogTemp, Display, TEXT("Start merging..."));
 	auto& MergeUtils = FModuleManager::Get().LoadModuleChecked<IMeshMergeModule>("MeshMergeUtilities").GetUtilities();
 
+	// Merge components
 	FVector Location;
 	TArray<UObject*> Assets;
+	const TArray<UPrimitiveComponent*> MergingComponents = MergingDialog->GetSelectedComponents();
 	{
 		FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Merging Actors..."));
 		SlowTask.MakeDialog();
 
 		auto SettingsObject = UGigaMergeToolSettings::Get();
-		const TArray<UPrimitiveComponent*> MergingComponents = MergingDialog->GetSelectedComponents();
 
 		if (MergingComponents.Num())
 		{
@@ -98,6 +99,67 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 				                                       ScreenAreaSize, true);
 			}
 		}
+	}
+
+	struct FMeshSectionInfo
+	{
+		UMaterialInterface* Material;
+		TArray<uint32> NumTriangles;
+		int64 TotalNumTriangles;
+	};
+	
+	// Calculate batches
+	if (Assets.Num())
+	{
+		UStaticMesh* StaticMesh = Cast<UStaticMesh>(Assets[0]);
+
+		const int32 NumMergedLODs = StaticMesh->GetNumLODs();
+		TArray<TArray<FMeshSectionInfo>> Resources;
+		Resources.AddDefaulted(NumMergedLODs);
+		for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
+		{
+			const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
+			Resources[LODIndex].AddDefaulted(NumMergedSections);
+			for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
+			{
+				FStaticMeshSection& Section = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
+				Resources[LODIndex][SectionIndex].Material = StaticMesh->GetMaterial(Section.MaterialIndex);
+				Resources[LODIndex][SectionIndex].TotalNumTriangles = Section.NumTriangles;
+			}
+		}
+
+		TArray<FBoxSphereBounds> SubBounds;
+		for (auto Component : MergingComponents)
+		{
+			if (auto MeshComponent = Cast<UStaticMeshComponent>(Component))
+			{
+				auto Mesh = MeshComponent->GetStaticMesh();
+				FVector Offset = MeshComponent->GetComponentLocation() - Location;
+				FBoxSphereBounds MeshBounds = Mesh->GetBounds();
+				MeshBounds.Origin += Offset;
+				SubBounds.Add(MoveTemp(MeshBounds));
+
+				const int32 NumLODs = Mesh->GetNumLODs();
+				for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+				{
+					const int32 NumSections = Mesh->GetNumSections(LODIndex);
+					for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+					{
+						FStaticMeshSection& Section = Mesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
+						UMaterialInterface* Material = Component->GetMaterial(Section.MaterialIndex);
+						for (auto& Info : Resources[LODIndex])
+						{
+							if (Material->GetName() == Info.Material->GetName())
+							{
+								Info.NumTriangles.Add(Section.NumTriangles);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// TODO: Save those data
 	}
 
 	if (Assets.Num())
