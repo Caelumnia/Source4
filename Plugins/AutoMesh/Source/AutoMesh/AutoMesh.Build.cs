@@ -40,6 +40,10 @@ public class AutoMesh : ModuleRules
 				"SlateCore",
 				"RHI",
 				"RenderCore",
+				"MeshMergeUtilities",
+				"MeshDescription",
+				"StaticMeshDescription",
+				"MaterialUtilities",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
