@@ -21,6 +21,8 @@ public class GigaMesh : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"RHI",
+				"RenderCore",
 			}
 		);
 	}

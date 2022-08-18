@@ -222,7 +222,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 					FirstIndex += Element.NumTriangles;
 					Batch.Elements.Add(MoveTemp(Element));
 				}
-				GigaMesh->SaveBatch(LODIndex, SectionIndex, MoveTemp(Batch));
+				GigaMesh->BatchMap.SaveBatch(LODIndex, SectionIndex, MoveTemp(Batch));
 			}
 		}
 
