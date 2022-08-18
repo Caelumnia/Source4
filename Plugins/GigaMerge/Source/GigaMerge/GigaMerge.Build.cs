@@ -8,18 +8,6 @@ public class GigaMerge : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PrivateIncludePaths.AddRange(
-			new string[] { }
-		);
-		
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				"MergeActors",
-			}
-		);
-		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -31,6 +19,8 @@ public class GigaMerge : ModuleRules
 				"SlateCore",
 				"EditorStyle",
 				"UnrealEd",
+				"MergeActors",
+				"GigaMesh",
 			}
 		);
 	}

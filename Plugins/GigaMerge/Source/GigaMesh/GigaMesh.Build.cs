@@ -8,8 +8,11 @@ public class GigaMesh : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PrivateIncludePaths.AddRange(
-			new string[] { }
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Core",
+			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
