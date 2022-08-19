@@ -38,7 +38,7 @@ void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 
 	CachedVisibility = Visibility;
 	
-	if (CachedVisibility.FindLast(false) == INDEX_NONE)
+	if (CachedVisibility.Find(false) == INDEX_NONE)
 	{
 		UpdateRHI(StaticIndices);
 	}
