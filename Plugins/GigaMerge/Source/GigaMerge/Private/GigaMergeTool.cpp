@@ -28,9 +28,7 @@ FGigaMergeTool::~FGigaMergeTool()
 
 FText FGigaMergeTool::GetTooltipText() const
 {
-	{
-		return LOCTEXT("GigaMergingToolTooltip", "Same as MeshMerge, but use for huge complex one.");
-	}
+	return LOCTEXT("GigaMergingToolTooltip", "Merge meshes into a GigaMesh, supporting frustum cull in sections.");
 }
 
 TSharedRef<SWidget> FGigaMergeTool::GetWidget()
@@ -72,6 +70,10 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 	TArray<UObject*> Assets;
 	auto MergingComponents = MergingDialog->GetSelectedComponents();
 	MergeComponents(PackageName, MergingComponents, Assets, Pivot);
+	checkf(Assets.Num() == 1, TEXT("can't merge into multiple static meshes"));
+
+	UStaticMesh* StaticMesh = CastChecked<UStaticMesh>(Assets[0]);
+	UGigaMesh* GigaMesh = DuplicateGigaMesh(GetDefaultAssetPackageName(PackageName), StaticMesh);
 
 	struct FMeshSectionInfo
 	{
@@ -82,42 +84,10 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		int32 TotalNumTriangles;
 	};
 
-	auto& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	// Calculate batches
 	{
 		FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Save Asset..."));
 		SlowTask.MakeDialog();
-		checkf(Assets.Num() == 1, TEXT("can't merge into multiple static meshes"));
-
-		// Create GigaMesh package
-		FString GMPackageName;
-		{
-			const FString Path = FPackageName::GetLongPackagePath(PackageName);
-			FString AssetName = FPackageName::GetShortName(PackageName);
-			AssetName[0] = 'G';
-
-			FSaveAssetDialogConfig SaveAssetDialogConfig;
-			SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("CreateMergedActorTitle", "Create Merged GigaMesh");
-			SaveAssetDialogConfig.DefaultPath = Path;
-			SaveAssetDialogConfig.DefaultAssetName = AssetName;
-			SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-			SaveAssetDialogConfig.AssetClassNames = {UGigaMesh::StaticClass()->GetFName()};
-			FString SaveObjectPath = ContentBrowser.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
-			GMPackageName = FPackageName::ObjectPathToPackageName(SaveObjectPath);
-		}
-
-		UPackage* Package = CreatePackage(*GMPackageName);
-		check(Package);
-		Package->FullyLoad();
-		Package->Modify();
-		UStaticMesh* StaticMesh = Cast<UStaticMesh>(Assets[0]);
-
-		FObjectDuplicationParameters DupParams(StaticMesh, Package);
-		DupParams.DestClass = UGigaMesh::StaticClass();
-		DupParams.DestName = FPackageName::GetShortFName(GMPackageName);
-		UGigaMesh* GigaMesh = Cast<UGigaMesh>(StaticDuplicateObjectEx(DupParams));
-		check(GigaMesh != nullptr);
 
 		// Collect sections in merged mesh
 		const int32 NumMergedLODs = StaticMesh->GetNumLODs();
@@ -204,6 +174,8 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		Assets.Add(GigaMesh);
 	}
 
+	auto& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	// Save assets
 	for (auto Asset : Assets)
 	{
@@ -216,6 +188,34 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 	MergingDialog->Reset();
 
 	return true;
+}
+
+FString FGigaMergeTool::GetDefaultAssetPackageName(FString PackageName) const
+{
+	if (PackageName.IsEmpty()) PackageName = GetDefaultPackageName();
+	auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+
+	const FString Path = FPackageName::GetLongPackagePath(PackageName);
+	FString AssetName = FPackageName::GetShortName(PackageName);
+	int32 Prefix = AssetName.Find(TEXT("SM_"), ESearchCase::CaseSensitive);
+	if (Prefix != INDEX_NONE)
+	{
+		AssetName[Prefix] = 'G';
+	}
+	else
+	{
+		AssetName.InsertAt(0, FString{TEXT("GM_")});
+	}
+	FString AssetPackageName = Path + TEXT("/") + AssetName;
+
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("CreateMergedActorTitle", "Create Merged GigaMesh");
+	SaveAssetDialogConfig.DefaultPath = Path;
+	SaveAssetDialogConfig.DefaultAssetName = AssetName;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+	SaveAssetDialogConfig.AssetClassNames = {UGigaMesh::StaticClass()->GetFName()};
+	FString SaveObjectPath = ContentBrowser.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+	return SaveObjectPath.IsEmpty() ? AssetPackageName : FPackageName::ObjectPathToPackageName(SaveObjectPath);
 }
 
 void FGigaMergeTool::MergeComponents(const FString& PackageName, const TArray<UPrimitiveComponent*>& Components,
@@ -246,6 +246,23 @@ void FGigaMergeTool::MergeComponents(const FString& PackageName, const TArray<UP
 			                                       PackageName, OutAssets, OutPivot, ScreenAreaSize, true);
 		}
 	}
+}
+
+UGigaMesh* FGigaMergeTool::DuplicateGigaMesh(FString&& AssetName, UObject* Asset) const
+{
+	// Create package for new asset
+	UPackage* Package = CreatePackage(*AssetName);
+	check(Package);
+	Package->FullyLoad();
+	Package->Modify();
+
+	UStaticMesh* StaticMesh = Cast<UStaticMesh>(Asset);
+	check(StaticMesh);
+
+	FObjectDuplicationParameters DupParams(StaticMesh, Package);
+	DupParams.DestClass = UGigaMesh::StaticClass();
+	DupParams.DestName = FPackageName::GetShortFName(AssetName);
+	return CastChecked<UGigaMesh>(StaticDuplicateObjectEx(DupParams));
 }
 
 #undef LOCTEXT_NAMESPACE

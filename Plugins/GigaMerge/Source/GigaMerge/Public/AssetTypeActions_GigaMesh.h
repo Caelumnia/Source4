@@ -9,7 +9,7 @@
 class FAssetTypeActions_GigaMesh : public FAssetTypeActions_Base
 {
 public:
-	// Begin IAssetTypeActions Interface
+	// Begin IAssetTypeActions Implementation
 	virtual FText GetName() const override { return NSLOCTEXT("AssetTypeActions", "AssetTypeActions_GigaMesh", "Giga Mesh"); }
 	virtual FColor GetTypeColor() const override { return FColor{0, 255, 255}; }
 	virtual UClass* GetSupportedClass() const override { return UGigaMesh::StaticClass(); }
@@ -17,7 +17,7 @@ public:
 	virtual bool IsImportedAsset() const override { return true; }
 	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor) override;
 	virtual UThumbnailInfo* GetThumbnailInfo(UObject* Asset) const override;
-	// End IAssetTypeActions Interface
+	// End IAssetTypeActions
 };
 
 inline void FAssetTypeActions_GigaMesh::OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor)
