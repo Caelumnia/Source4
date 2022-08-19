@@ -4,7 +4,7 @@
 constexpr uint32 StrideSize = sizeof(FGigaIndexBuffer::Stride);
 
 FGigaIndexBuffer::FGigaIndexBuffer(const TArray<uint32>& RawIndices, FGigaBatch&& InBatch, uint32 StartIndex, uint32 NumTriangles)
-	: CachedVisibility(0), NumTriangles(0), Batch(InBatch)
+	: CachedVisibility(true, InBatch.Elements.Num()), NumTriangles(0), Batch(InBatch)
 {
 	const uint32 NumIndices = NumTriangles * 3;
 	const uint32* Src = RawIndices.GetData() + StartIndex;
@@ -15,16 +15,17 @@ FGigaIndexBuffer::FGigaIndexBuffer(const TArray<uint32>& RawIndices, FGigaBatch&
 void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 {
 	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_UpdateVisibility);
-	
-	uint64 Visibility = 0;
+
+	const int32 NumElements = Batch.Elements.Num();
+	TBitArray<> Visibility(true, NumElements);
 	TArray<int32> VisibleBatch;
 	int32 TotalIndices = 0;
-	for (int i = 0; i < Batch.Elements.Num(); ++i)
+	for (int i = 0; i < NumElements; ++i)
 	{
 		auto& Element = Batch.Elements[i];
 		if (!Frustum.IntersectBox(Element.Bounds.Origin, Element.Bounds.BoxExtent))
 		{
-			Visibility |= 1ULL << i;
+			Visibility[i] = false;
 		}
 		else
 		{
@@ -37,7 +38,7 @@ void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 
 	CachedVisibility = Visibility;
 	
-	if (CachedVisibility == 0)
+	if (CachedVisibility.FindLast(false) == INDEX_NONE)
 	{
 		UpdateRHI(StaticIndices);
 	}

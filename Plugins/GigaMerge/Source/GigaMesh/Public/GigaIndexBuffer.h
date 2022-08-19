@@ -17,8 +17,9 @@ public:
 private:
 	TArray<Stride> StaticIndices;
 	TArray<Stride> VisibleIndices;
-	uint64 CachedVisibility;
+	TBitArray<> CachedVisibility;
 	uint32 NumTriangles;
+	
 	
 	FGigaBatch Batch;
 };
