@@ -7,7 +7,7 @@ UCLASS(Blueprintable, ClassGroup=GigaMesh, meta=(BlueprintSpawnableComponent))
 class GIGAMESH_API UGigaMeshComponent : public UStaticMeshComponent
 {
 	GENERATED_BODY()
-	
+
 public:
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override
 	{
@@ -17,10 +17,7 @@ public:
 			{
 				return new FGigaMeshSceneProxy(this, Cast<UGigaMesh>(Mesh));
 			}
-			else
-			{
-				return Super::CreateSceneProxy();
-			}
+			return Super::CreateSceneProxy();
 		}
 		return nullptr;
 	}

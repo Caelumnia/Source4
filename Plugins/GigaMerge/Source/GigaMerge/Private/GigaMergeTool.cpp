@@ -231,7 +231,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 
 		Assets.Add(GigaMesh);
 	}
-	
+
 	// Save assets
 	for (auto Asset : Assets)
 	{

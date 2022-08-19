@@ -6,7 +6,7 @@
 FGigaMeshSceneProxy::FGigaMeshSceneProxy(UGigaMeshComponent* InComponent, UGigaMesh* InMesh) :
 	FStaticMeshSceneProxy(InComponent, false)
 {
-	FVector Location = InComponent->GetComponentLocation();
+	FTransform LocalTransforms = InComponent->GetComponentTransform();
 	auto& BatchMap = InMesh->BatchMap;
 	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); ++LODIndex)
 	{
@@ -23,7 +23,7 @@ FGigaMeshSceneProxy::FGigaMeshSceneProxy(UGigaMeshComponent* InComponent, UGigaM
 			FGigaBatch Batch = BatchMap.GetBatch(LODIndex, SectionIndex);
 			for (auto& Element : Batch.Elements)
 			{
-				Element.Bounds.Origin += Location;
+				Element.Bounds = Element.Bounds.TransformBy(LocalTransforms);
 			}
 			
 			FGigaIndexBuffer IndexBuffer{Indices, MoveTemp(Batch), Section.FirstIndex, Section.NumTriangles};
