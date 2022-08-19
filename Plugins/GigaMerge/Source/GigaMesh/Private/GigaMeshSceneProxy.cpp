@@ -25,7 +25,7 @@ FGigaMeshSceneProxy::FGigaMeshSceneProxy(UGigaMeshComponent* InComponent, UGigaM
 			{
 				Element.Bounds = Element.Bounds.TransformBy(LocalTransforms);
 			}
-			
+
 			FGigaIndexBuffer IndexBuffer{Indices, MoveTemp(Batch), Section.FirstIndex, Section.NumTriangles};
 			DynamicIndices.Add(BatchIndex, MoveTemp(IndexBuffer));
 		}
@@ -117,32 +117,31 @@ void FGigaMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>
 			const FSceneView* View = Views[ViewIndex];
 			if (!(VisibilityMap & (1 << ViewIndex)) || !IsShown(View)) continue;
 
-			FLODMask LODMask = GetLODMask(View);
-			for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); ++LODIndex)
+			// NOTE THAT Dithered LOD Transition would not work.
+			const int32 LODIndex = GetLOD(View);
+			if (LODIndex < ClampedMinLOD) continue;
+
+			FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
+			if (EngineShowFlags.Wireframe && !EngineShowFlags.Materials && AllowDebugViewmodes()) { }
+			else
 			{
-				if (LODIndex < ClampedMinLOD || !LODMask.ContainsLOD(LODIndex)) continue;
-
-				FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
-				if (EngineShowFlags.Wireframe && !EngineShowFlags.Materials && AllowDebugViewmodes()) { }
-				else
+				for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
 				{
-					for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
-					{
-						FMeshBatch& MeshBatch = Collector.AllocateMesh();
-						
-						if (GetMeshBatch(View, LODIndex, SectionIndex, SDPG_World, MeshBatch))
-						{
-							MeshBatch.bDitheredLODTransition = false;
-							MeshBatch.bCanApplyViewModeOverrides = true;
-							MeshBatch.bUseWireframeSelectionColoring = false;
+					FMeshBatch& MeshBatch = Collector.AllocateMesh();
 
-							Collector.AddMesh(ViewIndex, MeshBatch);
-							INC_DWORD_STAT_BY(STAT_StaticMeshTriangles, MeshBatch.GetNumPrimitives());
-							INC_DWORD_STAT_BY(STAT_GigaMesh_Triangles, MeshBatch.GetNumPrimitives());
-						}
+					if (GetMeshBatch(View, LODIndex, SectionIndex, SDPG_World, MeshBatch))
+					{
+						MeshBatch.bDitheredLODTransition = false;
+						MeshBatch.bCanApplyViewModeOverrides = true;
+						MeshBatch.bUseWireframeSelectionColoring = false;
+
+						Collector.AddMesh(ViewIndex, MeshBatch);
+						INC_DWORD_STAT_BY(STAT_StaticMeshTriangles, MeshBatch.GetNumPrimitives());
+						INC_DWORD_STAT_BY(STAT_GigaMesh_Triangles, MeshBatch.GetNumPrimitives());
 					}
 				}
 			}
+
 			INC_DWORD_STAT_BY(STAT_GigaMesh_Batches, Collector.GetMeshBatchCount(ViewIndex));
 		}
 	}
