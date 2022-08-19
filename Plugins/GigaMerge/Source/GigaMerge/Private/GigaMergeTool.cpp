@@ -139,6 +139,9 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		}
 
 		UPackage* Package = CreatePackage(*GMPackageName);
+		check(Package);
+		Package->FullyLoad();
+		Package->Modify();
 		UStaticMesh* StaticMesh = Cast<UStaticMesh>(Assets[0]);
 
 		FObjectDuplicationParameters DupParams(StaticMesh, Package);

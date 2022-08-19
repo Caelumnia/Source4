@@ -21,6 +21,7 @@ public class GigaMerge : ModuleRules
 				"UnrealEd",
 				"MergeActors",
 				"GigaMesh",
+				"AssetTools",
 			}
 		);
 	}
