@@ -113,14 +113,15 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		int32 TotalNumTriangles;
 	};
 
+	auto& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	// Calculate batches
 	{
 		FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Save Asset..."));
 		SlowTask.MakeDialog();
-		checkf(Assets.Num() == 1, TEXT("can't merge into one static mesh"))
-		auto& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+		checkf(Assets.Num() == 1, TEXT("can't merge into multiple static meshes"));
 
+		// Create GigaMesh package
 		FString GMPackageName;
 		{
 			const FString Path = FPackageName::GetLongPackagePath(PackageName);
@@ -132,7 +133,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 			SaveAssetDialogConfig.DefaultPath = Path;
 			SaveAssetDialogConfig.DefaultAssetName = AssetName;
 			SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-			SaveAssetDialogConfig.AssetClassNames = { UGigaMesh::StaticClass()->GetFName() };
+			SaveAssetDialogConfig.AssetClassNames = {UGigaMesh::StaticClass()->GetFName()};
 			FString SaveObjectPath = ContentBrowser.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
 			GMPackageName = FPackageName::ObjectPathToPackageName(SaveObjectPath);
 		}
@@ -146,6 +147,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		UGigaMesh* GigaMesh = Cast<UGigaMesh>(StaticDuplicateObjectEx(DupParams));
 		check(GigaMesh != nullptr);
 
+		// Collect sections in merged mesh
 		const int32 NumMergedLODs = StaticMesh->GetNumLODs();
 		TArray<TArray<FMeshSectionInfo>> Resources;
 		Resources.SetNum(NumMergedLODs);
@@ -168,12 +170,14 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		{
 			if (auto MeshComponent = Cast<UStaticMeshComponent>(MergingComponents[ComponentIndex]))
 			{
+				// Collect bounds
 				auto Mesh = MeshComponent->GetStaticMesh();
-				FVector Offset = MeshComponent->GetComponentLocation() - Location;
-				FBoxSphereBounds MeshBounds = Mesh->GetBounds();
-				MeshBounds.Origin += Offset;
+				FTransform Origin{Location};
+				FTransform Offset = MeshComponent->GetComponentTransform().GetRelativeTransform(Origin);
+				FBoxSphereBounds MeshBounds = Mesh->GetBounds().TransformBy(Offset);
 				SubBounds.Add(MoveTemp(MeshBounds));
 
+				// Accumulate component index and triangles
 				const int32 NumLODs = Mesh->GetNumLODs();
 				for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 				{
@@ -201,7 +205,6 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 			}
 		}
 
-		// TODO: Save those data
 		for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
 		{
 			const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
@@ -218,7 +221,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 					Element.Bounds = SubBounds[SectionInfo.ComponentIndex[ElementIndex]];
 					Element.FirstIndex = FirstIndex;
 					Element.NumTriangles = SectionInfo.NumTriangles[ElementIndex];
-		
+
 					FirstIndex += Element.NumTriangles;
 					Batch.Elements.Add(MoveTemp(Element));
 				}
@@ -227,17 +230,16 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 		}
 
 		Assets.Add(GigaMesh);
-
-		// Save assets
-
-		for (auto Asset : Assets)
-		{
-			AssetRegistry.AssetCreated(Asset);
-			GEditor->BroadcastObjectReimported(Asset);
-		}
-
-		ContentBrowser.Get().SyncBrowserToAssets(Assets, true);
 	}
+	
+	// Save assets
+	for (auto Asset : Assets)
+	{
+		AssetRegistry.AssetCreated(Asset);
+		GEditor->BroadcastObjectReimported(Asset);
+	}
+
+	ContentBrowser.Get().SyncBrowserToAssets(Assets, true);
 
 	MergingDialog->Reset();
 
