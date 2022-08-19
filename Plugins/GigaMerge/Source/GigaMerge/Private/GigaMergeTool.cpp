@@ -68,41 +68,10 @@ bool FGigaMergeTool::CanMerge() const
 
 bool FGigaMergeTool::RunMerge(const FString& PackageName)
 {
-	auto& MergeUtils = FModuleManager::Get().LoadModuleChecked<IMeshMergeModule>("MeshMergeUtilities").GetUtilities();
-
-	// Merge components
-	FVector Location;
+	FVector Pivot;
 	TArray<UObject*> Assets;
-	const TArray<UPrimitiveComponent*> MergingComponents = MergingDialog->GetSelectedComponents();
-	{
-		FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Merging Actors..."));
-		SlowTask.MakeDialog();
-
-		auto SettingsObject = UGigaMergeToolSettings::Get();
-
-		if (MergingComponents.Num())
-		{
-			UWorld* World = MergingComponents[0]->GetWorld();
-			checkf(World != nullptr, TEXT("Invalid World retrieved from Mesh components"));
-			const float ScreenAreaSize = TNumericLimits<float>::Max();
-
-			// If the merge destination package already exists, it is possible that the mesh is already used in a scene somewhere, or its materials or even just its textures.
-			// Static primitives uniform buffers could become invalid after the operation completes and lead to memory corruption. To avoid it, we force a global reregister.
-			if (FindObject<UObject>(nullptr, *PackageName))
-			{
-				FGlobalComponentReregisterContext GlobalRegister;
-				MergeUtils.MergeComponentsToStaticMesh(MergingComponents, World, SettingsObject->Settings, nullptr, nullptr, PackageName, Assets,
-				                                       Location,
-				                                       ScreenAreaSize, true);
-			}
-			else
-			{
-				MergeUtils.MergeComponentsToStaticMesh(MergingComponents, World, SettingsObject->Settings, nullptr, nullptr, PackageName, Assets,
-				                                       Location,
-				                                       ScreenAreaSize, true);
-			}
-		}
-	}
+	auto MergingComponents = MergingDialog->GetSelectedComponents();
+	MergeComponents(PackageName, MergingComponents, Assets, Pivot);
 
 	struct FMeshSectionInfo
 	{
@@ -175,7 +144,7 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 			{
 				// Collect bounds
 				auto Mesh = MeshComponent->GetStaticMesh();
-				FTransform Origin{Location};
+				FTransform Origin{Pivot};
 				FTransform Offset = MeshComponent->GetComponentTransform().GetRelativeTransform(Origin);
 				FBoxSphereBounds MeshBounds = Mesh->GetBounds().TransformBy(Offset);
 				SubBounds.Add(MoveTemp(MeshBounds));
@@ -247,6 +216,36 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 	MergingDialog->Reset();
 
 	return true;
+}
+
+void FGigaMergeTool::MergeComponents(const FString& PackageName, const TArray<UPrimitiveComponent*>& Components,
+                                     TArray<UObject*>& OutAssets, FVector& OutPivot) const
+{
+	FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Merging Actors..."));
+	SlowTask.MakeDialog();
+
+	auto& MergeUtils = FModuleManager::Get().LoadModuleChecked<IMeshMergeModule>("MeshMergeUtilities").GetUtilities();
+	auto SettingsObject = UGigaMergeToolSettings::Get();
+	if (Components.Num())
+	{
+		UWorld* World = Components[0]->GetWorld();
+		checkf(World != nullptr, TEXT("Invalid World retrieved from Mesh components"));
+		const float ScreenAreaSize = TNumericLimits<float>::Max();
+
+		// If the merge destination package already exists, it is possible that the mesh is already used in a scene somewhere, or its materials or even just its textures.
+		// Static primitives uniform buffers could become invalid after the operation completes and lead to memory corruption. To avoid it, we force a global reregister.
+		if (FindObject<UObject>(nullptr, *PackageName))
+		{
+			FGlobalComponentReregisterContext GlobalRegister;
+			MergeUtils.MergeComponentsToStaticMesh(Components, World, SettingsObject->Settings, nullptr, nullptr,
+			                                       PackageName, OutAssets, OutPivot, ScreenAreaSize, true);
+		}
+		else
+		{
+			MergeUtils.MergeComponentsToStaticMesh(Components, World, SettingsObject->Settings, nullptr, nullptr,
+			                                       PackageName, OutAssets, OutPivot, ScreenAreaSize, true);
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

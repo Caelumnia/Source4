@@ -59,4 +59,6 @@ public:
 private:
 	TSharedPtr<SGigaMergingDialog> MergingDialog;
 	UGigaMergeToolSettings* Settings;
+
+	void MergeComponents(const FString& PackageName, const TArray<UPrimitiveComponent*>& Components, TArray<UObject*>& OutAssets, FVector& OutPivot) const;
 };
