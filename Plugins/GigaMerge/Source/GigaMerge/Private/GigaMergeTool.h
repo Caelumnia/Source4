@@ -61,9 +61,25 @@ public:
 	virtual FString GetDefaultAssetPackageName(FString PackageName = FString{}) const;
 	
 private:
+	/**
+	 * @brief Temporarily used for propagating.
+	 */
+	struct FSectionCache
+	{
+		// Merged index data
+		UMaterialInterface* Material;
+		int32 NumElements;
+		int32 TotalNumTriangles;
+
+		// Cached data
+		TArray<int32> ComponentIndex;
+		TArray<uint32> NumTriangles;
+	};
+	
 	TSharedPtr<SGigaMergingDialog> MergingDialog;
 	UGigaMergeToolSettings* Settings;
 
 	void MergeComponents(const FString& PackageName, const TArray<UPrimitiveComponent*>& Components, TArray<UObject*>& OutAssets, FVector& OutPivot) const;
-	UGigaMesh* DuplicateGigaMesh(FString&& AssetName, UObject* Asset) const;
+	void PropagateGigaMesh(const TArray<UPrimitiveComponent*>& Components, const FVector& Pivot, UGigaMesh* GigaMesh, UStaticMesh* StaticMesh);
+	UGigaMesh* DuplicateGigaMesh(FString&& AssetName, UStaticMesh* StaticMesh) const;
 };

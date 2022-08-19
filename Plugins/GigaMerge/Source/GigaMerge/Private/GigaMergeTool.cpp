@@ -4,6 +4,7 @@
 #include "Editor.h"
 #include "GigaMergingDialog.h"
 #include "GigaMesh.h"
+#include "GigaMeshComponent.h"
 #include "GigaMeshData.h"
 #include "IContentBrowserSingleton.h"
 #include "MeshMergeModule.h"
@@ -68,115 +69,18 @@ bool FGigaMergeTool::RunMerge(const FString& PackageName)
 {
 	FVector Pivot;
 	TArray<UObject*> Assets;
-	auto MergingComponents = MergingDialog->GetSelectedComponents();
-	MergeComponents(PackageName, MergingComponents, Assets, Pivot);
+	auto Components = MergingDialog->GetSelectedComponents();
+	MergeComponents(PackageName, Components, Assets, Pivot);
 	checkf(Assets.Num() == 1, TEXT("can't merge into multiple static meshes"));
 
 	UStaticMesh* StaticMesh = CastChecked<UStaticMesh>(Assets[0]);
 	UGigaMesh* GigaMesh = DuplicateGigaMesh(GetDefaultAssetPackageName(PackageName), StaticMesh);
+	PropagateGigaMesh(Components, Pivot, GigaMesh, StaticMesh);
+	Assets.Add(GigaMesh);
 
-	struct FMeshSectionInfo
-	{
-		UMaterialInterface* Material;
-		TArray<int32> ComponentIndex;
-		TArray<uint32> NumTriangles;
-		int32 NumElements;
-		int32 TotalNumTriangles;
-	};
-
-	// Calculate batches
-	{
-		FScopedSlowTask SlowTask(0, LOCTEXT("MergingActorsSlowTask", "Save Asset..."));
-		SlowTask.MakeDialog();
-
-		// Collect sections in merged mesh
-		const int32 NumMergedLODs = StaticMesh->GetNumLODs();
-		TArray<TArray<FMeshSectionInfo>> Resources;
-		Resources.SetNum(NumMergedLODs);
-		for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
-		{
-			const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
-			Resources[LODIndex].SetNum(NumMergedSections);
-			for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
-			{
-				FStaticMeshSection& Section = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
-				FMeshSectionInfo& SectionInfo = Resources[LODIndex][SectionIndex];
-				SectionInfo.Material = StaticMesh->GetMaterial(Section.MaterialIndex);
-				SectionInfo.TotalNumTriangles = Section.NumTriangles;
-				SectionInfo.NumElements = 0;
-			}
-		}
-
-		TArray<FBoxSphereBounds> SubBounds;
-		for (int32 ComponentIndex = 0; ComponentIndex < MergingComponents.Num(); ++ComponentIndex)
-		{
-			if (auto MeshComponent = Cast<UStaticMeshComponent>(MergingComponents[ComponentIndex]))
-			{
-				// Collect bounds
-				auto Mesh = MeshComponent->GetStaticMesh();
-				FTransform Origin{Pivot};
-				FTransform Offset = MeshComponent->GetComponentTransform().GetRelativeTransform(Origin);
-				FBoxSphereBounds MeshBounds = Mesh->GetBounds().TransformBy(Offset);
-				SubBounds.Add(MoveTemp(MeshBounds));
-
-				// Accumulate component index and triangles
-				const int32 NumLODs = Mesh->GetNumLODs();
-				for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
-				{
-					const int32 NumSections = Mesh->GetNumSections(LODIndex);
-					for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
-					{
-						FStaticMeshSection& Section = Mesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
-						UMaterialInterface* Material = MeshComponent->GetMaterial(Section.MaterialIndex);
-						for (auto& Info : Resources[LODIndex])
-						{
-							if (Material->GetName() == Info.Material->GetName())
-							{
-								Info.ComponentIndex.Add(ComponentIndex);
-								Info.NumTriangles.Add(Section.NumTriangles);
-							}
-							else
-							{
-								Info.ComponentIndex.Add(INDEX_NONE);
-								Info.NumTriangles.Add(0);
-							}
-							Info.NumElements++;
-						}
-					}
-				}
-			}
-		}
-
-		for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
-		{
-			const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
-			uint32 FirstIndex = 0;
-			for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
-			{
-				auto& SectionInfo = Resources[LODIndex][SectionIndex];
-
-				FGigaBatch Batch;
-				for (int ElementIndex = 0; ElementIndex < SectionInfo.NumElements; ++ElementIndex)
-				{
-					if (SectionInfo.ComponentIndex[ElementIndex] == INDEX_NONE) continue;
-					FGigaBatchElement Element;
-					Element.Bounds = SubBounds[SectionInfo.ComponentIndex[ElementIndex]];
-					Element.FirstIndex = FirstIndex;
-					Element.NumTriangles = SectionInfo.NumTriangles[ElementIndex];
-
-					FirstIndex += Element.NumTriangles;
-					Batch.Elements.Add(MoveTemp(Element));
-				}
-				GigaMesh->BatchMap.SaveBatch(LODIndex, SectionIndex, MoveTemp(Batch));
-			}
-		}
-
-		Assets.Add(GigaMesh);
-	}
-
+	// Save assets
 	auto& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	auto& ContentBrowser = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-	// Save assets
 	for (auto Asset : Assets)
 	{
 		AssetRegistry.AssetCreated(Asset);
@@ -248,16 +152,109 @@ void FGigaMergeTool::MergeComponents(const FString& PackageName, const TArray<UP
 	}
 }
 
-UGigaMesh* FGigaMergeTool::DuplicateGigaMesh(FString&& AssetName, UObject* Asset) const
+void FGigaMergeTool::PropagateGigaMesh(const TArray<UPrimitiveComponent*>& Components, const FVector& Pivot, UGigaMesh* GigaMesh, UStaticMesh* StaticMesh)
+{
+	FScopedSlowTask SlowTask(0, LOCTEXT("PropagateGigaMesh", "Propagating Visibility Data"));
+	SlowTask.MakeDialog();
+
+	// Create cached resources
+	TArray<TArray<FSectionCache>> Resources;
+	const int32 NumMergedLODs = StaticMesh->GetNumLODs();
+	Resources.SetNum(NumMergedLODs);
+	for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
+	{
+		const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
+		Resources[LODIndex].SetNum(NumMergedSections);
+		for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
+		{
+			FStaticMeshSection& Section = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
+			FSectionCache& Cache = Resources[LODIndex][SectionIndex];
+			Cache.Material = StaticMesh->GetMaterial(Section.MaterialIndex);
+			Cache.TotalNumTriangles = Section.NumTriangles;
+			Cache.NumElements = 0;
+		}
+	}
+
+	// Cache components into correct section
+	TArray<FTransform> RelativeTransforms;
+	FTransform Origin{Pivot};
+	for (int32 ComponentIndex = 0; ComponentIndex < Components.Num(); ++ComponentIndex)
+	{
+		auto MeshComponent = CastChecked<UStaticMeshComponent>(Components[ComponentIndex]);
+		auto Mesh = MeshComponent->GetStaticMesh();
+
+		RelativeTransforms.Add(MeshComponent->GetComponentTransform().GetRelativeTransform(Origin));
+
+		const int32 NumLODs = Mesh->GetNumLODs();
+		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+		{
+			const int32 NumSections = Mesh->GetNumSections(LODIndex);
+			for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
+			{
+				FStaticMeshSection& Section = Mesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex];
+				UMaterialInterface* Material = MeshComponent->GetMaterial(Section.MaterialIndex);
+				for (auto& Info : Resources[LODIndex])
+				{
+					if (Material->GetName() == Info.Material->GetName())
+					{
+						Info.ComponentIndex.Add(ComponentIndex);
+						Info.NumTriangles.Add(Section.NumTriangles);
+					}
+					else
+					{
+						Info.ComponentIndex.Add(INDEX_NONE);
+						Info.NumTriangles.Add(0);
+					}
+					Info.NumElements++;
+				}
+			}
+		}
+	}
+
+	// Propagate data
+	for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
+	{
+		const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
+		uint32 FirstIndex = 0;
+		for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
+		{
+			auto& Cache = Resources[LODIndex][SectionIndex];
+
+			FGigaBatch Batch;
+			for (int ElementIndex = 0; ElementIndex < Cache.NumElements; ++ElementIndex)
+			{
+				const int32 ComponentIndex = Cache.ComponentIndex[ElementIndex];
+				if (ComponentIndex == INDEX_NONE) continue;
+
+				FGigaBatchElement Element;
+				auto Component = CastChecked<UStaticMeshComponent>(Components[ComponentIndex]);
+				if (auto Mesh = Cast<UGigaMesh>(Component->GetStaticMesh())) // combine another GigaMesh
+				{
+					const auto& Batches = Mesh->BatchMap;
+					// TODO: Merge GigaMesh
+				}
+				else
+				{
+					Element.Bounds = Component->GetStaticMesh()->GetBounds().TransformBy(RelativeTransforms[ComponentIndex]);
+					Element.FirstIndex = FirstIndex;
+					Element.NumTriangles = Cache.NumTriangles[ElementIndex];
+
+					FirstIndex += Element.NumTriangles;
+					Batch.Elements.Add(MoveTemp(Element));
+				}
+			}
+			GigaMesh->BatchMap.SaveBatch(LODIndex, SectionIndex, MoveTemp(Batch));
+		}
+	}
+}
+
+UGigaMesh* FGigaMergeTool::DuplicateGigaMesh(FString&& AssetName, UStaticMesh* StaticMesh) const
 {
 	// Create package for new asset
 	UPackage* Package = CreatePackage(*AssetName);
 	check(Package);
 	Package->FullyLoad();
 	Package->Modify();
-
-	UStaticMesh* StaticMesh = Cast<UStaticMesh>(Asset);
-	check(StaticMesh);
 
 	FObjectDuplicationParameters DupParams(StaticMesh, Package);
 	DupParams.DestClass = UGigaMesh::StaticClass();

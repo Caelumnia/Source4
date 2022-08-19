@@ -3,7 +3,7 @@
 #include "GigaMeshData.h"
 #include "GigaMesh.generated.h"
 
-UCLASS()
+UCLASS(HideCategories=Object, BlueprintType, Config=Engine)
 class GIGAMESH_API UGigaMesh : public UStaticMesh
 {
 	GENERATED_BODY()
