@@ -49,6 +49,7 @@ bool FGigaMeshSceneProxy::GetMeshBatch(const FSceneView* View, int32 LODIndex, i
 	FMeshBatchElement& OutMeshBatchElement = OutMeshBatch.Elements[0];
 	OutMeshBatch.Type = PT_TriangleList;
 	OutMeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
+	OutMeshBatchElement.VertexFactoryUserData = RenderData->LODVertexFactories[LODIndex].VertexFactory.GetUniformBuffer();
 	OutMeshBatchElement.IndexBuffer = &IndexBuffer;
 	OutMeshBatchElement.FirstIndex = 0;
 	OutMeshBatchElement.NumPrimitives = IndexBuffer.GetNumTriangles();
@@ -59,7 +60,7 @@ bool FGigaMeshSceneProxy::GetMeshBatch(const FSceneView* View, int32 LODIndex, i
 		OutMeshBatch.LODIndex = LODIndex;
 		OutMeshBatch.CastShadow = bCastShadow && Section.bCastShadow;
 		OutMeshBatch.DepthPriorityGroup = DepthPriorityGroup;
-		OutMeshBatch.LCI = nullptr;
+		OutMeshBatch.LCI = &LODs[LODIndex];
 		OutMeshBatch.MaterialRenderProxy = MaterialRenderProxy;
 
 		OutMeshBatchElement.MinVertexIndex = Section.MinVertexIndex;
@@ -94,11 +95,70 @@ void FGigaMeshSceneProxy::DestroyRenderThreadResources()
 		Buffer.ReleaseResource();
 	}
 }
+/*
+void FGigaMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
+{
+	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_DrawStaticMeshBatch);
+	checkSlow(IsInParallelRenderingThread());
+
+	// Determine the DPG the primitive should be drawn in.
+	uint8 PrimitiveDPG = GetStaticDepthPriorityGroup();
+	int32 NumLODs = RenderData->LODResources.Num();
+	//Never use the dynamic path in this path, because only unselected elements will use DrawStaticElements
+	bool bIsMeshElementSelected = false;
+	const auto FeatureLevel = GetScene().GetFeatureLevel();
+	const bool IsMobile = IsMobilePlatform(GetScene().GetShaderPlatform());
+	const int32 NumRuntimeVirtualTextureTypes = RuntimeVirtualTextureMaterialTypes.Num();
+
+	for (int32 LODIndex = ClampedMinLOD; LODIndex < NumLODs; LODIndex++)
+	{
+		const FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
+		float ScreenSize = GetScreenSize(LODIndex);
+
+		bool bUseUnifiedMeshForShadow = false;
+		bool bUseUnifiedMeshForDepth = false;
+
+		// Draw the static mesh elements.
+		for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)
+		{
+#if WITH_EDITOR
+			if (GIsEditor)
+			{
+				const FLODInfo::FSectionInfo& Section = LODs[LODIndex].Sections[SectionIndex];
+
+				bIsMeshElementSelected = Section.bSelected;
+				PDI->SetHitProxy(Section.HitProxy);
+			}
+#endif // WITH_EDITOR
+
+			const int32 NumBatches = GetNumMeshBatches();
+			PDI->ReserveMemoryForMeshes(NumBatches * (1 + NumRuntimeVirtualTextureTypes));
+
+			for (int32 BatchIndex = 0; BatchIndex < NumBatches; BatchIndex++)
+			{
+				FMeshBatch BaseMeshBatch;
+				if (GetMeshBatch(, LODIndex, BatchIndex, SectionIndex, BaseMeshBatch))
+				{
+					{
+						// Standard mesh elements.
+						// If we have submitted an optimized shadow-only mesh, remaining mesh elements must not cast shadows.
+						FMeshBatch MeshBatch(BaseMeshBatch);
+						MeshBatch.CastShadow &= !bUseUnifiedMeshForShadow;
+						MeshBatch.bUseAsOccluder &= !bUseUnifiedMeshForDepth;
+						MeshBatch.bUseForDepthPass &= !bUseUnifiedMeshForDepth;
+						PDI->DrawMesh(MeshBatch, ScreenSize);
+					}
+				}
+			}
+		}
+	}
+}
+*/
 
 void FGigaMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap,
                                                  FMeshElementCollector& Collector) const
 {
-	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_GetDynamicMesh);
+	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_GetDynamicMeshBatch);
 	checkSlow(IsInParallelRenderingThread());
 
 	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;

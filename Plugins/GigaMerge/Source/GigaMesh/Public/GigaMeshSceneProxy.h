@@ -19,6 +19,7 @@ public:
 	// Begin FPrimitiveSceneProxy Interface
 	virtual void CreateRenderThreadResources() override;
 	virtual void DestroyRenderThreadResources() override;
+	// virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap,
 	                                    FMeshElementCollector& Collector) const override;
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
