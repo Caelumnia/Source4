@@ -23,7 +23,12 @@
 		{
 			"Name": "GigaMesh",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [
+				"Win32",
+				"Win64",
+				"Android"
+			]
 		}
 	]
 }

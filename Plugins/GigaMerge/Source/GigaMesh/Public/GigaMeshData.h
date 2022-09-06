@@ -2,27 +2,27 @@
 #include "Engine/DataTable.h"
 #include "GigaMeshData.generated.h"
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct GIGAMESH_API FGigaBatchElement
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	FBoxSphereBounds Bounds;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	uint32 FirstIndex;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	uint32 NumTriangles;
 };
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct GIGAMESH_API FGigaBatch
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	TArray<FGigaBatchElement> Elements;
 };
 
@@ -52,6 +52,6 @@ struct GIGAMESH_API FGigaBatchMap
 		return Map[BatchIndex];
 	}
 	
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	TMap<uint64, FGigaBatch> Map;
 };

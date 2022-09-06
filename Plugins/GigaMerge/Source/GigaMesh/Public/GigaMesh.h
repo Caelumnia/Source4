@@ -8,7 +8,7 @@ class GIGAMESH_API UGigaMesh : public UStaticMesh
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	FGigaBatchMap BatchMap;
 
 	virtual void Serialize(FArchive& Ar) override;

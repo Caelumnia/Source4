@@ -12,10 +12,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "RenderDocPlugin",
-			"Enabled": true
-		},
-		{
 			"Name": "AutoMesh",
 			"Enabled": false
 		}
