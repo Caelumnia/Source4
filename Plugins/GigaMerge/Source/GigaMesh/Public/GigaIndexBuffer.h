@@ -21,6 +21,5 @@ private:
 	uint32 NumTriangles;
 	uint32 AllocatedByteCount;
 	
-	
 	FGigaBatch Batch;
 };
