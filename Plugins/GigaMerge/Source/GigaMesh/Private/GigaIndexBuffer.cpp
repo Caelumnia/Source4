@@ -69,33 +69,21 @@ bool FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 
 void FGigaIndexBuffer::InitRHI()
 {
-	const uint32 Size = StaticIndices.Num() * StrideSize;
+	AllocatedByteCount = StaticIndices.Num() * StrideSize;
 	FRHIResourceCreateInfo CreateInfo;
-	void* Buffer = nullptr;
-	IndexBufferRHI = RHICreateAndLockIndexBuffer(StrideSize, StaticIndices.Num() * StrideSize, BUF_Static, CreateInfo, Buffer);
-	FMemory::Memcpy(Buffer, StaticIndices.GetData(), Size);
-	RHIUnlockIndexBuffer(IndexBufferRHI);
-	NumTriangles = StaticIndices.Num() / 3;
+	IndexBufferRHI = RHICreateIndexBuffer(StrideSize, AllocatedByteCount, BUF_Dynamic, CreateInfo);
+	UpdateRHI(StaticIndices);
 }
 
 void FGigaIndexBuffer::UpdateRHI(const TArray<Stride>& Indices)
 {
+	check(IsValidRef(IndexBufferRHI));
+	check(Indices.Num() <= StaticIndices.Num());
 	const uint32 Size = Indices.Num() * StrideSize;
 
-	if (Size == 0)
-	{
-		NumTriangles = 0;
-		return;
-	}
-	
-	if (IndexBufferRHI->GetSize() != Size)
-	{
-		IndexBufferRHI.SafeRelease();
-		FRHIResourceCreateInfo CreateInfo;
-		IndexBufferRHI = RHICreateIndexBuffer(StrideSize, Size, BUF_Static, CreateInfo);
-	}
-	void* Buffer = RHILockIndexBuffer(IndexBufferRHI, 0, Size, RLM_WriteOnly);
+	void* Buffer = RHILockIndexBuffer(IndexBufferRHI, 0, AllocatedByteCount, RLM_WriteOnly);
 	FMemory::Memcpy(Buffer, Indices.GetData(), Size);
 	RHIUnlockIndexBuffer(IndexBufferRHI);
 	NumTriangles = Indices.Num() / 3;
+	
 }

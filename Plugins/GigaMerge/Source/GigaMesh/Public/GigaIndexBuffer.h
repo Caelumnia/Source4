@@ -19,6 +19,7 @@ private:
 	TArray<Stride> VisibleIndices;
 	TBitArray<> CachedVisibility;
 	uint32 NumTriangles;
+	uint32 AllocatedByteCount;
 	
 	
 	FGigaBatch Batch;
