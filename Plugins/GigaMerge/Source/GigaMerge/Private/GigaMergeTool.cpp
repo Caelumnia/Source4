@@ -215,12 +215,12 @@ void FGigaMergeTool::PropagateGigaMesh(const TArray<UPrimitiveComponent*>& Compo
 	for (int32 LODIndex = 0; LODIndex < NumMergedLODs; ++LODIndex)
 	{
 		const int32 NumMergedSections = StaticMesh->GetNumSections(LODIndex);
-		uint32 FirstIndex = 0;
 		for (int32 SectionIndex = 0; SectionIndex < NumMergedSections; ++SectionIndex)
 		{
 			auto& Cache = Resources[LODIndex][SectionIndex];
 
 			FGigaBatch Batch;
+			uint32 FirstIndex = 0;
 			for (int ElementIndex = 0; ElementIndex < Cache.NumElements; ++ElementIndex)
 			{
 				const int32 ComponentIndex = Cache.ComponentIndex[ElementIndex];
@@ -241,6 +241,17 @@ void FGigaMergeTool::PropagateGigaMesh(const TArray<UPrimitiveComponent*>& Compo
 
 					FirstIndex += Element.NumTriangles;
 					Batch.Elements.Add(MoveTemp(Element));
+				}
+			}
+			for (int ElementIndex = 0; ElementIndex < Batch.Elements.Num(); ++ElementIndex)
+			{
+				if (ElementIndex == 0)
+				{
+					Batch.Bounds = Batch.Elements[ElementIndex].Bounds;
+				}
+				else
+				{
+					Batch.Bounds = Batch.Bounds + Batch.Elements[ElementIndex].Bounds;
 				}
 			}
 			GigaMesh->BatchMap.SaveBatch(LODIndex, SectionIndex, MoveTemp(Batch));

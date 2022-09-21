@@ -12,9 +12,15 @@ FGigaIndexBuffer::FGigaIndexBuffer(const TArray<uint32>& RawIndices, FGigaBatch&
 	FMemory::Memcpy(StaticIndices.GetData(), Src, NumIndices * StrideSize);
 }
 
-void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
+bool FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 {
 	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_UpdateVisibility);
+
+	if (!Frustum.IntersectBox(Batch.Bounds.Origin, Batch.Bounds.BoxExtent))
+	{
+		CachedVisibility.Init(false, Batch.Elements.Num());
+		return false;
+	}
 
 	const int32 NumElements = Batch.Elements.Num();
 	TBitArray<> Visibility(true, NumElements);
@@ -34,7 +40,7 @@ void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 		}
 	}
 	
-	if (CachedVisibility == Visibility) return;
+	if (CachedVisibility == Visibility) return true;
 
 	CachedVisibility = Visibility;
 	
@@ -58,6 +64,7 @@ void FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 		}
 		UpdateRHI(VisibleIndices);
 	}
+	return true;
 }
 
 void FGigaIndexBuffer::InitRHI()

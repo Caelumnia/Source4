@@ -21,6 +21,7 @@ FGigaMeshSceneProxy::FGigaMeshSceneProxy(UGigaMeshComponent* InComponent, UGigaM
 			const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
 			const uint64 BatchIndex = GetCombinedBatchIndex(LODIndex, SectionIndex);
 			FGigaBatch Batch = BatchMap.GetBatch(LODIndex, SectionIndex);
+			Batch.Bounds = Batch.Bounds.TransformBy(LocalTransforms);
 			for (auto& Element : Batch.Elements)
 			{
 				Element.Bounds = Element.Bounds.TransformBy(LocalTransforms);
@@ -44,7 +45,10 @@ bool FGigaMeshSceneProxy::GetMeshBatch(const FSceneView* View, int32 LODIndex, i
 	const uint64 BatchIndex = GetCombinedBatchIndex(LODIndex, SectionIndex);
 	check(DynamicIndices.Contains(BatchIndex))
 	FGigaIndexBuffer& IndexBuffer = DynamicIndices[BatchIndex];
-	IndexBuffer.UpdateVisibility(View->ViewFrustum);
+	if (!IndexBuffer.UpdateVisibility(View->ViewFrustum))
+	{
+		return false;
+	}
 
 	FMeshBatchElement& OutMeshBatchElement = OutMeshBatch.Elements[0];
 	OutMeshBatch.Type = PT_TriangleList;

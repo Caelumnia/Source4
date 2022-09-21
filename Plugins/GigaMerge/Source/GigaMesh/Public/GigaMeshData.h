@@ -23,6 +23,9 @@ struct GIGAMESH_API FGigaBatch
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
+	FBoxSphereBounds Bounds;
+
+	UPROPERTY(VisibleAnywhere, Category="GigaMesh")
 	TArray<FGigaBatchElement> Elements;
 };
 

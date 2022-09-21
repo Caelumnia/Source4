@@ -8,7 +8,7 @@ public:
 	
 	FGigaIndexBuffer(const TArray<uint32>& RawIndices, FGigaBatch&& InBatch, uint32 StartIndex, uint32 NumTriangles);
 
-	void UpdateVisibility(const FConvexVolume& Frustum);
+	bool UpdateVisibility(const FConvexVolume& Frustum);
 	uint32 GetNumTriangles() const { return NumTriangles; }
 
 	virtual void InitRHI() override;
