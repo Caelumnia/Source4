@@ -12,8 +12,8 @@
 	],
 	"Plugins": [
 		{
-			"Name": "AutoMesh",
-			"Enabled": false
+			"Name": "GigaMerge",
+			"Enabled": true
 		}
 	]
 }

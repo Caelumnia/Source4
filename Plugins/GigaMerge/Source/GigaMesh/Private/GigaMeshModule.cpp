@@ -8,4 +8,4 @@ void FGigaMeshModule::ShutdownModule() {}
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FGigaMeshModule, GigaMerge)
+IMPLEMENT_MODULE(FGigaMeshModule, GigaMesh)
