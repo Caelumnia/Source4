@@ -4,8 +4,9 @@
 constexpr uint32 StrideSize = sizeof(FGigaIndexBuffer::Stride);
 
 FGigaIndexBuffer::FGigaIndexBuffer(const TArray<uint32>& RawIndices, FGigaBatch&& InBatch, uint32 StartIndex, uint32 NumTriangles)
-	: CachedVisibility(true, InBatch.Elements.Num()), NumTriangles(0), Batch(InBatch)
+	: CachedVisibility(true, InBatch.Elements.Num()), NumTriangles(0), AllocatedByteCount(0), Batch(InBatch)
 {
+	check(RawIndices.Num() != 0);
 	const uint32 NumIndices = NumTriangles * 3;
 	const uint32* Src = RawIndices.GetData() + StartIndex;
 	StaticIndices.SetNum(NumIndices);
@@ -19,6 +20,7 @@ bool FGigaIndexBuffer::UpdateVisibility(const FConvexVolume& Frustum)
 	if (!Frustum.IntersectBox(Batch.Bounds.Origin, Batch.Bounds.BoxExtent))
 	{
 		CachedVisibility.Init(false, Batch.Elements.Num());
+		NumTriangles = 0;
 		return false;
 	}
 

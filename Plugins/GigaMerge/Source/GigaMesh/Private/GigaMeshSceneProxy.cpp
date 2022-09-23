@@ -15,6 +15,7 @@ FGigaMeshSceneProxy::FGigaMeshSceneProxy(UGigaMeshComponent* InComponent, UGigaM
 		TArray<uint32> Indices;
 		LODModel.IndexBuffer.GetCopy(Indices);
 		LODModel.IndexBuffer.TrySetAllowCPUAccess(false);
+		if (Indices.Num() == 0) continue;
 
 		for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
 		{
@@ -37,47 +38,21 @@ bool FGigaMeshSceneProxy::GetMeshBatch(const FSceneView* View, int32 LODIndex, i
 {
 	SCOPE_CYCLE_COUNTER(STAT_GigaMesh_GetMeshBatches);
 
-	const FStaticMeshLODResources& LODModel = RenderData->LODResources[LODIndex];
-	const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
-	const FLODInfo& ProxyLODInfo = LODs[LODIndex];
-	const FMaterialRenderProxy* MaterialRenderProxy = ProxyLODInfo.Sections[SectionIndex].Material->GetRenderProxy();
-
+	GetMeshElement(LODIndex, 0, SectionIndex, DepthPriorityGroup, false, true, OutMeshBatch);
 	const uint64 BatchIndex = GetCombinedBatchIndex(LODIndex, SectionIndex);
-	check(DynamicIndices.Contains(BatchIndex))
-	FGigaIndexBuffer& IndexBuffer = DynamicIndices[BatchIndex];
-	if (!IndexBuffer.UpdateVisibility(View->ViewFrustum))
+	if (DynamicIndices.Contains(BatchIndex))
 	{
-		return false;
+		auto& IndexBuffer = DynamicIndices[BatchIndex];
+		if (!IndexBuffer.UpdateVisibility(View->ViewFrustum) || !IndexBuffer.GetNumTriangles())
+		{
+			return false;
+		}
+		auto& Element = OutMeshBatch.Elements[0];
+		Element.IndexBuffer = &IndexBuffer;
+		Element.FirstIndex = 0;
+		Element.NumPrimitives = IndexBuffer.GetNumTriangles();
 	}
-
-	FMeshBatchElement& OutMeshBatchElement = OutMeshBatch.Elements[0];
-	OutMeshBatch.Type = PT_TriangleList;
-	OutMeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
-	OutMeshBatchElement.VertexFactoryUserData = RenderData->LODVertexFactories[LODIndex].VertexFactory.GetUniformBuffer();
-	OutMeshBatchElement.IndexBuffer = &IndexBuffer;
-	OutMeshBatchElement.FirstIndex = 0;
-	OutMeshBatchElement.NumPrimitives = IndexBuffer.GetNumTriangles();
-
-	if (OutMeshBatchElement.NumPrimitives > 0)
-	{
-		OutMeshBatch.SegmentIndex = SectionIndex;
-		OutMeshBatch.LODIndex = LODIndex;
-		OutMeshBatch.CastShadow = bCastShadow && Section.bCastShadow;
-		OutMeshBatch.DepthPriorityGroup = DepthPriorityGroup;
-		OutMeshBatch.LCI = &LODs[LODIndex];
-		OutMeshBatch.MaterialRenderProxy = MaterialRenderProxy;
-
-		OutMeshBatchElement.MinVertexIndex = Section.MinVertexIndex;
-		OutMeshBatchElement.MaxVertexIndex = Section.MaxVertexIndex;
-		OutMeshBatchElement.MinScreenSize = LODIndex < MAX_STATIC_MESH_LODS - 1
-			                                    ? RenderData->ScreenSize[LODIndex].GetValue()
-			                                    : 0.0f;
-		OutMeshBatchElement.MaxScreenSize = RenderData->ScreenSize[LODIndex + 1].GetValue();
-
-		return true;
-	}
-
-	return false;
+	return true;
 }
 
 void FGigaMeshSceneProxy::CreateRenderThreadResources()
